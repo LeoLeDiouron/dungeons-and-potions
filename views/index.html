@@ -1,0 +1,915 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+  <meta charset="UTF-8" />
+  <title>Donjons & Potions</title>
+  <!-- phaser imports -->
+  <script src="./phaser.min.js"></script>
+  <!-- custom imports -->
+  <script src="./views/js/constants.js"></script>
+  <!-- css -->
+  <style type="text/css">
+    body {
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+
+<script type="text/javascript">
+
+  /* _______________________ GLOBALS _______________________ */
+
+  // constants
+  const LIST_AVAILABLE_CHARACTERS = loadCharacters();
+  const LIST_ENEMIES = loadEnemies();
+  const LIST_POTIONS = loadPotions();
+  const POTIONS_FUNCTIONS = [hpPotion, goldPotion, critPotion, attackGoblinPotion, fullHpPotion, attackPotion, attackOrcPotion, attackTrollPotion];
+
+  // about phaser
+  let windowWidth = window.innerWidth;
+  let windowHeight = window.innerHeight;
+  let game = new Phaser.Game(windowWidth, windowHeight, Phaser.AUTO, 'donjons-et-potions', { preload: preload, create: create, update: update });
+
+  // about game
+  let currentScene = 1;
+  let currentRound = 0;
+  let playerStats = {};
+  let enemies = [];
+  let enemiesStats = {
+    goblin: {
+      attack: 1
+    },
+    orc: {
+      attack: 1
+    },
+    troll: {
+      attack: 1
+    },
+    witch: {
+      attack: 1
+    },
+    devil: {
+      attack: 1
+    }
+  }
+  let resumeBattleLines = [];
+  let moneyEarned = 0;
+
+  // about potions
+  let potions = [];
+  let shopPotions = [];
+  let witchPotions = [];
+  let effects = [];
+  let hasDrunkPotion = false;
+
+  // about scenes
+  let scene1 = {};
+  let scene2 = {};
+  let scene3 = {};
+  let scene4 = {};
+
+  // visual effects
+  let timeOverEnemies = [];
+  let timeOverPotions = [];
+
+  /* _______________________ PHASER FUNCTIONS _______________________ */
+
+  function preload() {
+    // load background
+    game.load.image('background', 'assets/images/background.jpg');
+    // load characters
+    game.load.image('character1', 'assets/images/units/character1.png');
+    game.load.image('character2', 'assets/images/units/character2.png');
+    game.load.image('character3', 'assets/images/units/character3.png');
+    // load potions
+    game.load.image('potion_1_1', 'assets/images/potions/potion_1_1.png');
+    game.load.image('potion_1_2', 'assets/images/potions/potion_1_2.png');
+    game.load.image('potion_1_3', 'assets/images/potions/potion_1_3.png');
+    game.load.image('potion_2_1', 'assets/images/potions/potion_2_1.png');
+    game.load.image('potion_2_2', 'assets/images/potions/potion_2_2.png');
+    game.load.image('potion_2_3', 'assets/images/potions/potion_2_3.png');
+    // load enemies
+    game.load.image('goblin', 'assets/images/units/goblin.jpg');
+    game.load.image('orc', 'assets/images/units/orc.png');
+    game.load.image('troll', 'assets/images/units/troll.png');
+    game.load.image('witch', 'assets/images/units/witch.png');
+    game.load.image('devil', 'assets/images/units/devil.png');
+    // load button images
+    game.load.image('button_attack', 'assets/images/buttons/button_attack.png');
+    game.load.image('button_run', 'assets/images/buttons/button_run.png');
+    game.load.image('button_retry', 'assets/images/buttons/button_retry.png');
+    game.load.image('button_continue', 'assets/images/buttons/button_continue.png');
+    game.load.image('button_shop', 'assets/images/buttons/button_shop.png');
+  }
+
+  function create() {
+    game.add.image(0, 0, 'background');
+    createScene1();
+  }
+
+  function update() {
+    const scenesFunc = [
+      updateScene1,
+      updateScene2,
+      updateScene3,
+      updateScene4
+    ];
+    scenesFunc[currentScene - 1]();
+  }
+
+  /* _______________________ SCENES FUNCTIONS _______________________ */
+
+  /* ______ SCENE 1 - SELECT CHARACTER ______ */
+
+  function createScene1() {
+    currentRound = 0;
+    currentScene = 1;
+    potions = initPotions(3);
+    effects = [];
+    scene1.shadowTitle = createText('DUNGEONS & POTIONS', 30, windowWidth / 2 + 2, windowHeight / 4 + 2, '#595959', true, true);
+    scene1.title = createText('DUNGEONS & POTIONS', 30, windowWidth / 2, windowHeight / 4, '#E1E1E1', true, true);
+    scene1.shadowDescription = createText('choose your hero', 25, windowWidth / 2 + 2, (windowHeight / 4) + 50 + 2, '#595959');
+    scene1.description = createText('choose your hero', 25, windowWidth / 2, (windowHeight / 4) + 50, '#E1E1E1');
+    scene1.charactersButtons = [];
+    scene1.charactersBorders = [];
+    for (let i = 0; i <= 2; i++) {
+      const characterButton = createButton(LIST_AVAILABLE_CHARACTERS[i].sprite, () => { selectCharacter(LIST_AVAILABLE_CHARACTERS[i]) }, windowWidth / 2 + ((i - 1) * 300), windowHeight / 2, 0.5);
+      const characterBorder = game.add.graphics(0, 0);
+      characterBorder.lineStyle(2, 0xF0E800, 1);
+      characterBorder.drawRect(characterButton.x, characterButton.y, characterButton.width, characterButton.height);
+      scene1.charactersBorders.push(characterBorder);
+      scene1.charactersButtons.push(characterButton);
+    }
+  }
+
+  function updateScene1() {
+    if (scene1.charactersButtons) {
+      if (scene1.characterDescription) {
+        scene1.characterDescription.destroy();
+        scene1.shadowCharacterDescription.destroy();
+      }
+      for (let i = 0; i < scene1.charactersButtons.length; i++) {
+        if (scene1.charactersButtons[i].input.pointerOver()) {
+          scene1.charactersButtons[i].alpha = 1;
+          scene1.shadowCharacterDescription = createText(LIST_AVAILABLE_CHARACTERS[i].name, 25, windowWidth / 2 + 2, windowHeight / 4 * 3 + 2, '#595959');
+          scene1.characterDescription = createText(LIST_AVAILABLE_CHARACTERS[i].name, 25, windowWidth / 2, windowHeight / 4 * 3, '#E1E1E1');
+        } else {
+          scene1.charactersButtons[i].alpha = 0.5;
+        }
+      }
+    }
+  }
+
+  function destroyScene1() {
+    scene1.title.destroy();
+    scene1.shadowTitle.destroy();
+    scene1.description.destroy();
+    scene1.shadowDescription.destroy();
+    for (let i = 0; i < scene1.charactersButtons.length; i++) {
+      scene1.charactersBorders[i].destroy();
+      scene1.charactersButtons[i].destroy();
+    }
+    if (scene1.characterDescription) {
+      scene1.characterDescription.destroy();
+      scene1.shadowCharacterDescription.destroy();
+    }
+  }
+
+  function selectCharacter(character) {
+    playerStats = character;
+    playerStats.hp = character.maxHp;
+    destroyScene1();
+    createScene2();
+  }
+
+  /* ______ SCENE 2 - ROUND ______ */
+
+  function createScene2() {
+    timeOverEnemies = [];
+    currentRound++;
+    currentScene = 2;
+    hasDrunkPotion = false;
+    for (const witchPotion of witchPotions) {
+      potions.push(witchPotion);
+    }
+    witchPotions = [];
+    // title
+    scene2.titleShadow = createText(`ROOM ${currentRound}`, 30, windowWidth / 2 + 2, windowHeight / 10 + 2, '#595959', true, true);
+    scene2.title = createText(`ROOM ${currentRound}`, 30, windowWidth / 2, windowHeight / 10, '#E1E1E1', true, true);
+    // enemies
+    generateEnemies();
+    scene2.enemiesShadows = [];
+    scene2.enemiesButtons = [];
+    let idx = 0;
+    let pos = (enemies.length % 2) ? windowWidth / 2 : windowWidth / 2 - 275 / 2;
+    for (let i = 0; i < enemies.length; i++) {
+      let enemyButton = createButton(enemies[i].name.toLowerCase(), ()=>{}, pos, windowHeight / 3, 0.5);
+      const graphics = game.add.graphics(0, 0);
+      graphics.lineStyle(2, 0xFFFFFF, 1);
+      graphics.drawRect(enemyButton.x, enemyButton.y, enemyButton.width, enemyButton.height);
+      scene2.enemiesShadows.push(graphics);
+      scene2.enemiesButtons.push(enemyButton);
+      idx++;
+      pos += (idx % 2) ? idx * 275 : -1 * idx * 275;
+      timeOverEnemies.push(0);
+    }
+    displayPotions();
+    displayPotionsEffects();
+    // action buttons
+    scene2.buttonAttack = createButton('button_attack', ()=>{fightEnemies();}, windowWidth / 2 - 100, windowHeight / 7 * 6, 0.3);
+    scene2.buttonRun = createButton('button_run', ()=>{}, windowWidth / 2 + 100, windowHeight / 7 * 6, 0.3);
+  }
+
+  async function updateScene2() {
+    // stats
+    if (scene2.stats) {
+      scene2.stats.destroy();
+    }
+    const statsText = `HP: ${playerStats.hp}/${playerStats.maxHp}\nATK: ${playerStats.attack}\nCRIT: ${playerStats.percCritic}%\nDODGE: ${playerStats.percDodge}%\nGOLD: ${playerStats.gold}`;
+    scene2.stats = createText(statsText, 20, windowWidth / 35, windowHeight / 10, '#E1E1E1', false, false);
+    // enemies
+    if (enemies.length) {
+      if (scene2.enemyDescription) {
+        scene2.enemyDescription.graphics.destroy();
+        scene2.enemyDescription.title.destroy();
+        scene2.enemyDescription.titleShadow.destroy();
+        scene2.enemyDescription.stats.destroy();
+      }
+      for (let i = 0; i < scene2.enemiesButtons.length; i++) {
+        if (scene2.enemiesButtons[i].input.pointerOver()) {
+          scene2.enemyDescription = {};
+          scene2.enemyDescription.graphics = game.add.graphics(0, 0);
+          scene2.enemyDescription.graphics.beginFill(0xDDDDDD);
+          scene2.enemyDescription.graphics.drawRect(scene2.enemiesButtons[i].x, scene2.enemiesButtons[i].y, scene2.enemiesButtons[i].width, scene2.enemiesButtons[i].height);
+          scene2.enemyDescription.titleShadow = createText(enemies[i].name.toUpperCase(), 20, scene2.enemiesButtons[i].centerX + 2, scene2.enemiesButtons[i].y + scene2.enemiesButtons[i].height / 2 + 2, '#888888', true, true);
+          scene2.enemyDescription.title = createText(enemies[i].name.toUpperCase(), 20, scene2.enemiesButtons[i].centerX, scene2.enemiesButtons[i].y + scene2.enemiesButtons[i].height / 2,'#000000', true, true);
+          let reward = enemies[i].gold + 'Gold';
+          if (enemies[i].name === 'Witch') {
+            reward = 'Potion'
+          } else if (enemies[i].name === 'Witch') {
+            reward = 'Stats++';
+          }
+          scene2.enemyDescription.stats = createText(`HP: ${enemies[i].hp} / ATK: ${enemies[i].attack * enemiesStats[enemies[i].name.toLowerCase()].attack} / ${reward}`, 18, scene2.enemiesButtons[i].centerX, scene2.enemiesButtons[i].y + 150,'#000000');
+          if (timeOverEnemies[i] < 20) {
+            timeOverEnemies[i]++;
+          }
+          scene2.enemyDescription.graphics.alpha = 0.6 * (timeOverEnemies[i] / 20);
+        } else {
+          timeOverEnemies[i] = 0;
+        }
+      }
+    }
+    // potions
+    if (scene2.potionsButtons) {
+      if (scene2.potionDescription) {
+        scene2.potionDescription.graphics.destroy();
+        scene2.potionDescription.description.destroy();
+        scene2.potionDescription.descriptionShadow.destroy();
+        scene2.potionDescription.stayingRounds.destroy();
+        scene2.potionDescription.stayingRoundsShadow.destroy();
+      }
+      for (let i = 0; i < scene2.potionsButtons.length; i++) {
+        if (scene2.potionsButtons[i].input.pointerOver()) {
+          scene2.potionDescription = {};
+          scene2.potionDescription.graphics = game.add.graphics(0, 0);
+          scene2.potionDescription.graphics.beginFill(0xDDDDDD, 0.85);
+          scene2.potionDescription.graphics.drawRect(scene2.potionsButtons[i].x, scene2.potionsButtons[i].y, scene2.potionsButtons[i].width, scene2.potionsButtons[i].height);
+          scene2.potionDescription.descriptionShadow = createText(potions[i].text, 18, scene2.potionsButtons[i].centerX + 2, scene2.potionsButtons[i].y + scene2.potionsButtons[i].height / 2 + 2, '#888888', true, true);
+          scene2.potionDescription.description = createText(potions[i].text, 18, scene2.potionsButtons[i].centerX, scene2.potionsButtons[i].y + scene2.potionsButtons[i].height / 2,'#000000', true, true);
+          scene2.potionDescription.stayingRoundsShadow = createText(`${potions[i].rounds} rounds`, 18, scene2.potionsButtons[i].centerX + 2, scene2.potionsButtons[i].y + 152, '#888888');
+          scene2.potionDescription.stayingRounds = createText(`${potions[i].rounds} rounds`, 18, scene2.potionsButtons[i].centerX, scene2.potionsButtons[i].y + 150,'#000000');
+          if (timeOverPotions[i] < 20) {
+            timeOverPotions[i]++;
+          }
+          scene2.potionDescription.graphics.alpha = 0.6 * (timeOverPotions[i] / 20);
+        } else {
+          timeOverPotions[i] = 0;
+        }
+      }
+    }
+  }
+
+  function displayPotionsEffects() {
+    if (scene2.effects) {
+      for (const effect of scene2.effects) {
+        effect.destroy();
+      }
+    }
+    scene2.effects = [];
+    let idx = 0;
+    const colors = ['#969593', '#72ABB4', '#C9B27A'];
+    for (const effect of effects) {
+      scene2.effects.push(createText(`${effect.text} (${effect.stayingRounds})`, 20, windowWidth / 35, windowHeight / 4 * 3 + idx * 30, colors[effect.rarity - 1], false, false));
+      idx++;
+    }
+  }
+
+  function destroyPotions() {
+    if (scene2.potionsButtons) {
+      for (const potionsButtons of scene2.potionsButtons) {
+        potionsButtons.destroy();
+      }
+    }
+    if (scene2.potionsShadows) {
+      for (const potionsShadows of scene2.potionsShadows) {
+        potionsShadows.destroy();
+      }
+    }
+  }
+
+  function displayPotions() {
+    destroyPotions();
+    scene2.potionsShadows = [];
+    scene2.potionsButtons = [];
+    timeOverPotions = [];
+    let idx = 0;
+    let pos = (potions.length % 2) ? windowWidth / 2 : windowWidth / 2 - 175 / 2;
+    for (let i = 0; i < potions.length; i++) {
+      let potionButton = createButton(potions[i].image, ()=>{drinkPotion(i)}, pos, windowHeight / 3 * 2, 0.35);
+      const graphics = game.add.graphics(0, 0);
+      graphics.lineStyle(2, 0xFFFFFF, 1);
+      graphics.drawRect(potionButton.x, potionButton.y, potionButton.width, potionButton.height);
+      scene2.potionsShadows.push(graphics);
+      scene2.potionsButtons.push(potionButton);
+      idx++;
+      pos += (idx % 2) ? idx * 175 : -1 * idx * 175;
+      timeOverPotions.push(0);
+    }
+  }
+
+  function generateEnemies() {
+    enemies = [];
+    let levelRoom = currentRound * 2;
+    while (levelRoom > 0) {
+      const enemy = copy(LIST_ENEMIES[getRandomInt(LIST_ENEMIES.length)]);
+      if (enemy.value <= levelRoom && (enemy.name !== 'Devil' || !enemies.map(_enemy => _enemy.name).includes('Devil'))) {
+        enemies.push(enemy);
+        levelRoom -= enemy.value;
+      }
+    }
+  }
+
+  function fightEnemy(enemy) {
+    while (playerStats.hp > 0 && enemy.hp > 0) {
+      if (getRandomInt(101) > 5) {
+        const attack = (getRandomInt(101) < playerStats.percCritic) ? playerStats.attack * 2 : playerStats.attack;
+        enemy.hp -= attack;
+        resumeBattleLines.push({
+          text: `You deal [${attack}] damages ${(attack===playerStats.attack*2) ? '(crtitc !) ' : ''}to the ${enemy.name}`,
+          currentEnemy: enemy.name.toLowerCase(),
+          playerHp: Math.round(playerStats.hp / playerStats.maxHp * 100) / 100,
+          enemyHp: Math.round(enemy.hp / enemy.maxHp * 100) / 100,
+          isGood: true
+        });
+      } else {
+        resumeBattleLines.push({
+          text: `You miss your attack !`,
+          currentEnemy: enemy.name.toLowerCase(),
+          playerHp: Math.round(playerStats.hp / playerStats.maxHp * 100) / 100,
+          enemyHp: Math.round(enemy.hp / enemy.maxHp * 100) / 100,
+          isGood: false
+        });
+      }
+      if (enemy.hp > 0) {
+        if (getRandomInt(101) > playerStats.percDodge) {
+          playerStats.hp -= enemy.attack * enemiesStats[enemy.name.toLowerCase()].attack;
+          resumeBattleLines.push({
+            text: `The ${enemy.name} deals [${enemy.attack * enemiesStats[enemy.name.toLowerCase()].attack}] damages to you`,
+            currentEnemy: enemy.name.toLowerCase(),
+            playerHp: Math.round(playerStats.hp / playerStats.maxHp * 100) / 100,
+            enemyHp: Math.round(enemy.hp / enemy.maxHp * 100) / 100,
+            isGood: false
+          });
+        } else {
+          resumeBattleLines.push({
+            text: `You dodge the ${enemy.name} attack`,
+            currentEnemy: enemy.name.toLowerCase(),
+            playerHp: Math.round(playerStats.hp / playerStats.maxHp * 100) / 100,
+            enemyHp: Math.round(enemy.hp / enemy.maxHp * 100) / 100,
+            isGood: true
+          });
+        }
+      } else {
+        resumeBattleLines.push({
+          text: `The ${enemy.name} is dead`,
+          currentEnemy: enemy.name.toLowerCase(),
+          playerHp: Math.round(playerStats.hp / playerStats.maxHp * 100) / 100,
+          enemyHp: Math.round(enemy.hp / enemy.maxHp * 100) / 100,
+          isGood: true
+        });
+      }
+    }
+    return playerStats.hp > 0;
+  }
+
+  function fightEnemies() {
+    moneyEarned = 0;
+    resumeBattleLines = [];
+    let isDevilKilled = false;
+    for (const enemy of enemies) {
+      const win = fightEnemy(enemy);
+      if (win) {
+        moneyEarned += enemy.gold;
+        if (enemy.name === 'Witch') {
+          witchPotions.push(initPotions(1)[0]);
+        } else if (enemy.name === 'Devil') {
+          isDevilKilled = true;
+        }
+      } else {
+        break;
+      }
+    }
+    if (isDevilKilled) {
+      increaseStats();
+    }
+    moneyEarned = Math.round(moneyEarned * playerStats.coeffGold);
+    playerStats.gold += moneyEarned;
+    disablePotionsEffects();
+    destroyScene2();
+    createScene3();
+  }
+
+  function increaseStats() {
+    playerStats.hp += 100;
+    playerStats.maxHp += 100;
+    playerStats.attack += 50;
+    playerStats.percCritic += 10;
+    playerStats.percDodge += 5;
+  }
+
+  function disablePotionsEffects() {
+    let isDone = false;
+    let idx = 0;
+    while (!isDone) {
+      isDone = true;
+      for (let i = idx; i < effects.length; i++) {
+        effects[i].stayingRounds--;
+        if (!effects[i].stayingRounds) {
+          effects[i].fcn();
+          effects.splice(i, 1);
+          isDone = false;
+          idx = i;
+          break;
+        }
+      }
+    }
+  }
+
+  function drinkPotion(selectedPotion) {
+    if (selectedPotion !== null) { // !hasDrunkPotion && 
+      POTIONS_FUNCTIONS[potions[selectedPotion].type - 1](potions[selectedPotion]);
+      potions.splice(selectedPotion, 1);
+      displayPotions();
+      selectedPotion = null;
+      hasDrunkPotion = true;
+      displayPotionsEffects();
+    }
+  }
+
+  function destroyScene2() {
+    scene2.title.destroy();
+    scene2.titleShadow.destroy();
+    destroyPotions();
+    for (let i = 0; i < scene2.enemiesButtons.length; i++) {
+      scene2.enemiesButtons[i].destroy();
+      scene2.enemiesShadows[i].destroy();
+    }
+    for (const effect of scene2.effects) {
+      effect.destroy();
+    }
+    scene2.buttonAttack.destroy();
+    scene2.buttonRun.destroy();
+    scene2.stats.destroy();
+  }
+
+  /* ______ SCENE 3 - END ROUND ______ */
+
+  async function createScene3() {
+    currentScene = 3;
+    scene3.lines = [];
+    scene3.character = createButton(playerStats.sprite, ()=>{}, windowWidth / 4, windowHeight / 2, 0.5);
+    scene3.characterBorder = game.add.graphics(0, 0);
+    scene3.characterBorder.lineStyle(2, 0xF0E800, 1);
+    scene3.characterBorder.drawRect(scene3.character.x, scene3.character.y, scene3.character.width, scene3.character.height);
+    await displayLines();
+    if (playerStats.hp > 0) {
+      const fcnNewRoom = () => {
+        destroyScene3();
+        createScene2();
+      };
+      const fcnShop = () => {
+        destroyScene3();
+        createScene4();
+      };
+      scene3.lines.push(createText(`You earn [${moneyEarned}] gold ! (total: ${playerStats.gold})`, 23, windowWidth / 2, windowHeight / 2 + 40, '#F0E800', true, true));
+      displayWitchPotions();
+      scene3.buttonContinue = createButton('button_continue', fcnNewRoom, windowWidth / 2 - 150, windowHeight / 7 * 6, 0.3);
+      scene3.buttonShop = createButton('button_shop', fcnShop, windowWidth / 2 + 150, windowHeight / 7 * 6, 0.3);
+      destroyEnemy();
+    } else {
+      const fncRetry = () => {
+        destroyScene3();
+        createScene1();
+      }
+      scene3.lines.push(createText(`GAME OVER`, 23, windowWidth / 2, windowHeight / 2 + 40 + 2, '#7E2626', true, true));
+      scene3.lines.push(createText(`GAME OVER`, 23, windowWidth / 2, windowHeight / 2 + 40, '#A43030', true, true));
+      scene3.buttonRetry = createButton('button_retry', fncRetry, windowWidth / 2 + 150, windowHeight / 7 * 6, 0.3);
+      destroyCharacter();
+    }
+  }
+
+  function updateScene3() {
+    if (scene3.potionsButtons) {
+      if (scene3.potionDescription) {
+        scene3.potionDescription.graphics.destroy();
+        scene3.potionDescription.description.destroy();
+        scene3.potionDescription.descriptionShadow.destroy();
+        scene3.potionDescription.stayingRounds.destroy();
+        scene3.potionDescription.stayingRoundsShadow.destroy();
+      }
+      for (let i = 0; i < scene3.potionsButtons.length; i++) {
+        if (scene3.potionsButtons[i].input.pointerOver()) {
+          scene3.potionDescription = {};
+          scene3.potionDescription.graphics = game.add.graphics(0, 0);
+          scene3.potionDescription.graphics.beginFill(0xDDDDDD, 0.85);
+          scene3.potionDescription.graphics.drawRect(scene3.potionsButtons[i].x, scene3.potionsButtons[i].y, scene3.potionsButtons[i].width, scene3.potionsButtons[i].height);
+          scene3.potionDescription.descriptionShadow = createText(witchPotions[i].text, 18, scene3.potionsButtons[i].centerX + 2, scene3.potionsButtons[i].y + scene3.potionsButtons[i].height / 2 + 2, '#888888', true, true);
+          scene3.potionDescription.description = createText(witchPotions[i].text, 18, scene3.potionsButtons[i].centerX, scene3.potionsButtons[i].y + scene3.potionsButtons[i].height / 2,'#000000', true, true);
+          scene3.potionDescription.stayingRoundsShadow = createText(`${witchPotions[i].rounds} rounds`, 18, scene3.potionsButtons[i].centerX + 2, scene3.potionsButtons[i].y + 152, '#888888');
+          scene3.potionDescription.stayingRounds = createText(`${witchPotions[i].rounds} rounds`, 18, scene3.potionsButtons[i].centerX, scene3.potionsButtons[i].y + 150,'#000000');
+          if (timeOverPotions[i] < 20) {
+            timeOverPotions[i]++;
+          }
+          scene3.potionDescription.graphics.alpha = 0.6 * (timeOverPotions[i] / 20);
+        } else {
+          timeOverPotions[i] = 0;
+        }
+      }
+    }
+  }
+
+  async function displayLines() {
+    let enemyType = null;
+    for (const line of resumeBattleLines) {
+      let currentEnemyType = line.currentEnemy;
+      if (!scene3.enemy) {
+        enemyType = currentEnemyType;
+        scene3.enemy = createButton(enemyType, ()=>{}, windowWidth / 4 * 3, windowHeight / 2, 0.5);
+        scene3.enemyBorder = game.add.graphics(0, 0);
+        scene3.enemyBorder.lineStyle(2, 0xF0E800, 1);
+        scene3.enemyBorder.drawRect(scene3.enemy.x, scene3.enemy.y, scene3.enemy.width, scene3.enemy.height);
+      }
+      for (const displayedLine of scene3.lines) {
+        displayedLine.centerY -= 40;
+      }
+      const color = (!line.isGood) ? '#A43030' : '#348A42'
+      const colorShadow = (!line.isGood) ? '#7E2626' : '#2A6A34'
+      scene3.lines.push(createText(line.text, 23, windowWidth / 2 + 1, windowHeight / 2 + 2, colorShadow));
+      scene3.lines.push(createText(line.text, 23, windowWidth / 2, windowHeight / 2, color));
+      if (line.text.indexOf('dead') !== -1) {
+        console.log('III')
+        scene3.enemy.destroy();
+        scene3.enemyBorder.destroy();
+        scene3.characterGraphics.destroy();
+        scene3.enemyGraphics.destroy();
+        scene3.enemy = null;
+      } else {
+        console.log('V')
+        if (scene3.characterGraphics) {
+          scene3.characterGraphics.destroy();
+          scene3.enemyGraphics.destroy();
+        }
+        scene3.characterGraphics = game.add.graphics(0, 0);
+        let playerAlpha = (1 - line.playerHp < 0.9) ? 1 - line.playerHp : 0.9;
+        scene3.characterGraphics.beginFill(0x8C1818, playerAlpha);
+        scene3.characterGraphics.drawRect(scene3.character.x, scene3.character.y, scene3.character.width, scene3.character.height);
+        scene3.enemyGraphics = game.add.graphics(0, 0);
+        let enemyAlpha = (1 - line.enemyHp < 0.9) ? 1 - line.enemyHp : 0.9;
+        console.log(enemyAlpha)
+        scene3.enemyGraphics.beginFill(0x8C1818, enemyAlpha);
+        scene3.enemyGraphics.drawRect(scene3.enemy.x, scene3.enemy.y, scene3.enemy.width, scene3.enemy.height);
+      }
+      await sleep(500);
+    }
+  }
+
+  function displayWitchPotions() {
+    timeOverPotions = [];
+    scene3.potionsShadows = [];
+    scene3.potionsButtons = [];
+    let idx = 0;
+    let pos = (witchPotions.length % 2) ? windowWidth / 2 : windowWidth / 2 - 175 / 2;
+    for (let i = 0; i < witchPotions.length; i++) {
+      let potionButton = createButton(witchPotions[i].image, ()=>{}, pos, windowHeight / 3 * 2, 0.35);
+      const graphics = game.add.graphics(0, 0);
+      graphics.lineStyle(2, 0xFFFFFF, 1);
+      graphics.drawRect(potionButton.x, potionButton.y, potionButton.width, potionButton.height);
+      scene3.potionsShadows.push(graphics);
+      scene3.potionsButtons.push(potionButton);
+      idx++;
+      pos += (idx % 2) ? idx * 175 : -1 * idx * 175;
+      timeOverPotions.push(0);
+    }
+  }
+
+  function destroyCharacter() {
+    if (scene3.character) {
+      scene3.character.destroy();
+      scene3.characterGraphics.destroy();
+      scene3.characterBorder.destroy();
+      scene3.character = null;
+    }
+  }
+
+  function destroyEnemy() {
+    if (scene3.enemy) {
+      scene3.enemy.destroy();
+      scene3.enemyGraphics.destroy();
+      scene3.enemyBorder.destroy();
+      scene3.enemy = null;
+    }
+  }
+
+  function destroyWitchPotions() {
+    for (let i = 0; i < scene3.potionsButtons.length; i++) {
+      scene3.potionsButtons[i].destroy();
+      scene3.potionsShadows[i].destroy();
+    }
+  }
+
+  function destroyScene3() {
+    destroyCharacter();
+    destroyEnemy();
+    destroyWitchPotions();
+    if (playerStats.hp > 0) {
+      scene3.buttonContinue.destroy();
+      scene3.buttonShop.destroy();
+    } else {
+      scene3.buttonRetry.destroy();
+    }
+    for (const line of scene3.lines) {
+      line.destroy();
+    }
+  }
+
+  /* ______ SCENE 4 - SHOP ______ */
+
+  function createScene4() {
+    currentScene = 4;
+    const fcnNewRoom = () => {
+      destroyScene4();
+      createScene2();
+    };
+    scene4.buttonContinue = createButton('button_continue', fcnNewRoom, windowWidth / 2, windowHeight / 7 * 6, 0.3);
+    generateShopPotions();
+    displayShopPotions();
+  }
+
+  function displayShopPotions() {
+    timeOverPotions = [];
+    destroyShopPotions();
+    scene4.potionsShadows = [];
+    scene4.potionsButtons = [];
+    let idx = 0;
+    let pos = (shopPotions.length % 2) ? windowWidth / 2 : windowWidth / 2 - 175 / 2;
+    for (let i = 0; i < shopPotions.length; i++) {
+      let potionButton = createButton(shopPotions[i].image, ()=>{buyPotion(i)}, pos, windowHeight / 2, 0.35);
+      const graphics = game.add.graphics(0, 0);
+      graphics.lineStyle(2, 0xFFFFFF, 1);
+      graphics.drawRect(potionButton.x, potionButton.y, potionButton.width, potionButton.height);
+      scene4.potionsShadows.push(graphics);
+      scene4.potionsButtons.push(potionButton);
+      idx++;
+      pos += (idx % 2) ? idx * 175 : -1 * idx * 175;
+      timeOverPotions.push(0);
+    }
+  }
+
+  function updateScene4() {
+    if (scene4.gold) {
+      scene4.gold.destroy();
+      scene4.goldShadow.destroy();
+    }
+    scene4.goldShadow = createText(`You have ${playerStats.gold} gold`, 25, windowWidth / 2, windowHeight / 2 - 98, '#595959');
+    scene4.gold = createText(`You have ${playerStats.gold} gold`, 25, windowWidth / 2, windowHeight / 2 - 100, '#FFFFFF');
+    if (scene4.potionsButtons) {
+      if (scene4.potionDescription) {
+        for (const field of ['graphics', 'description', 'descriptionShadow', 'stayingRounds', 'stayingRoundsShadow', 'priceShadow', 'price']) {
+          scene4.potionDescription[field].destroy();
+        }
+      }
+      for (let i = 0; i < scene4.potionsButtons.length; i++) {
+        if (scene4.potionsButtons[i].input.pointerOver()) {
+          scene4.potionDescription = {};
+          scene4.potionDescription.graphics = game.add.graphics(0, 0);
+          scene4.potionDescription.graphics.beginFill(0xDDDDDD, 0.85);
+          scene4.potionDescription.graphics.drawRect(scene4.potionsButtons[i].x, scene4.potionsButtons[i].y, scene4.potionsButtons[i].width, scene4.potionsButtons[i].height);
+          scene4.potionDescription.descriptionShadow = createText(shopPotions[i].text, 18, scene4.potionsButtons[i].centerX + 2, scene4.potionsButtons[i].y + scene4.potionsButtons[i].height / 2 + 2, '#888888', true, true);
+          scene4.potionDescription.description = createText(shopPotions[i].text, 18, scene4.potionsButtons[i].centerX, scene4.potionsButtons[i].y + scene4.potionsButtons[i].height / 2,'#000000', true, true);
+          scene4.potionDescription.stayingRoundsShadow = createText(`${shopPotions[i].rounds} rounds`, 18, scene4.potionsButtons[i].centerX + 2, scene4.potionsButtons[i].y + 152, '#888888');
+          scene4.potionDescription.stayingRounds = createText(`${shopPotions[i].rounds} rounds`, 18, scene4.potionsButtons[i].centerX, scene4.potionsButtons[i].y + 150,'#000000');
+          scene4.potionDescription.priceShadow = createText(`${shopPotions[i].price * playerStats.shopDiscount} Gold`, 20, scene4.potionsButtons[i].centerX + 2, scene4.potionsButtons[i].y + 22, '#888888');
+          scene4.potionDescription.price = createText(`${shopPotions[i].price * playerStats.shopDiscount} Gold`, 20, scene4.potionsButtons[i].centerX, scene4.potionsButtons[i].y + 20,'#000000');
+          if (timeOverPotions[i] < 20) {
+            timeOverPotions[i]++;
+          }
+          scene4.potionDescription.graphics.alpha = 0.6 * (timeOverPotions[i] / 20);
+        } else {
+          timeOverPotions[i] = 0;
+        }
+      }
+    }
+  }
+
+  function buyPotion(idxPotion) {
+    if (playerStats.gold >= shopPotions[idxPotion].price * playerStats.shopDiscount) {
+      potions.push(shopPotions[idxPotion]);
+      playerStats.gold -= shopPotions[idxPotion].price * playerStats.shopDiscount;
+      shopPotions.splice(idxPotion, 1);
+      displayShopPotions();
+    }
+  }
+
+  function generateShopPotions() {
+    shopPotions = initPotions(5);
+    shopPotions.push(LIST_POTIONS[14]);
+  }
+
+  function destroyShopPotions() {
+    if (scene4.potionsButtons) {
+      for (const potionsButtons of scene4.potionsButtons) {
+        potionsButtons.destroy();
+      }
+    }
+    if (scene4.potionsShadows) {
+      for (const potionsShadows of scene4.potionsShadows) {
+        potionsShadows.destroy();
+      }
+    }
+  }
+
+  function destroyScene4() {
+    scene4.buttonContinue.destroy();
+    scene4.gold.destroy();
+    scene4.goldShadow.destroy();
+    destroyShopPotions();
+  }
+
+  /* ______ SCENE 5 - GAME OVER ______ */
+
+  /* _______________________ POTIONS FUNCTIONS _______________________ */
+
+  function hpPotion(potion) {
+    const perc = Math.round(playerStats.maxHp / 100 * potion.value);
+    playerStats.maxHp += perc;
+    playerStats.hp += perc;
+    effects.push({
+      text: potion.text,
+      rarity: potion.rarity,
+      stayingRounds: potion.rounds,
+      fcn: ()=>{
+        playerStats.maxHp -= perc;
+        playerStats.hp = (playerStats.maxHp < playerStats.hp) ? playerStats.maxHp : playerStats.hp
+      }
+    });
+  }
+
+  function goldPotion(potion) {
+    const perc = Math.round(playerStats.coeffGold / 100 * potion.value * 100) / 100;
+    playerStats.coeffGold += perc;
+    effects.push({
+      text: potion.text,
+      rarity: potion.rarity,
+      stayingRounds: potion.rounds,
+      fcn: ()=>{
+        playerStats.coeffGold -= perc;
+      }
+    });
+  }
+
+  function critPotion(potion) {
+    const perc = Math.round(playerStats.percCritic / 100 * potion.value * 100) / 100;
+    playerStats.percCritic += perc;
+    effects.push({
+      text: potion.text,
+      rarity: potion.rarity,
+      stayingRounds: potion.rounds,
+      fcn: ()=>{
+        playerStats.percCritic -= perc;
+      }
+    });
+  }
+
+  function attackGoblinPotion(potion) {
+    const perc = Math.round(enemiesStats.goblin.attack / 100 * potion.value * 100) / 100;
+    enemiesStats.goblin.attack -= perc;
+    effects.push({
+      text: potion.text,
+      rarity: potion.rarity,
+      stayingRounds: potion.rounds,
+      fcn: ()=>{
+        enemiesStats.goblin.attack += perc;
+      }
+    });
+  }
+
+  function attackOrcPotion(potion) {
+    const perc = Math.round(enemiesStats.orc.attack / 100 * potion.value * 100) / 100;
+    enemiesStats.orc.attack -= perc;
+    effects.push({
+      text: potion.text,
+      rarity: potion.rarity,
+      stayingRounds: potion.rounds,
+      fcn: ()=>{
+        enemiesStats.orc.attack += perc;
+      }
+    });
+  }
+
+  function attackTrollPotion(potion) {
+    const perc = Math.round(enemiesStats.troll.attack / 100 * potion.value * 100) / 100;
+    enemiesStats.troll.attack -= perc;
+    effects.push({
+      text: potion.text,
+      rarity: potion.rarity,
+      stayingRounds: potion.rounds,
+      fcn: ()=>{
+        enemiesStats.troll.attack += perc;
+      }
+    });
+  }
+
+  function fullHpPotion(potion) {
+    playerStats.hp = playerStats.maxHp;
+  }
+
+  function attackPotion(potion) {
+    const perc = Math.round(playerStats.attack / 100 * potion.value * 100) / 100;
+    playerStats.attack += perc;
+    effects.push({
+      text: potion.text,
+      rarity: potion.rarity,
+      stayingRounds: potion.rounds,
+      fcn: ()=>{
+        playerStats.attack -= perc;
+      }
+    });
+  }
+
+  /* _______________________ TOOLS FUNCTIONS _______________________ */
+
+  function createText(text, size, x, y, color='#FFFFFF', isCenter=true, isBold=false) {
+    const newText = game.add.text(x, y, text, { font: `${(isBold) ? 'bold ' : ''}${size}px Arial`, fill: color , boundsAlignH: "center", boundsAlignV: "middle" });
+    if (isCenter) {
+      newText.centerX = x;
+      newText.centerY = y;
+    }
+    return newText;
+  }
+
+  function createButton(image, callback, x, y, scale=1) {
+    let button = game.add.button(0, 0, image, callback);
+    button.scale.setTo(scale, scale);
+    button.centerX = x;
+    button.centerY = y;
+    return button;
+  }
+
+  function getRandomInt(max) {
+    let rnd = Math.floor(Math.random() * Math.floor(max));
+    return (rnd !== max) ? rnd : max - 1;
+  }
+
+  function copy(object) {
+    return JSON.parse(JSON.stringify(object));
+  }
+
+  function initPotions(nbPotions) {
+    const newPotions = [];
+    for (let i = 0; i < nbPotions; i++) {
+      let rnd = getRandomInt(100);
+      let rarity = null;
+      if (rnd < 60) {
+        rarity = 1;
+      } else if (rnd < 120) {
+        rarity = 2;
+      } else {
+        rarity = 3;
+      }
+      let rndPotion = getRandomInt(LIST_POTIONS.length);
+      while (LIST_POTIONS[rndPotion].rarity !== rarity) {
+        rndPotion = getRandomInt(LIST_POTIONS.length);
+      }
+      newPotions.push(copy(LIST_POTIONS[rndPotion]));
+    }
+    return newPotions;
+  }
+
+  async function sleep(ms) {
+    return new Promise((resolve, reject) => {
+      setTimeout(resolve, ms);
+    });
+  }
+
+</script>

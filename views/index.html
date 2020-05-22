@@ -7,6 +7,7 @@
   <script src="./phaser.min.js"></script>
   <!-- custom imports -->
   <script src="./views/js/constants.js"></script>
+  <script src="./views/js/potions.js"></script>
   <!-- css -->
   <style type="text/css">
     body {
@@ -24,7 +25,7 @@
   const LIST_AVAILABLE_CHARACTERS = loadCharacters();
   const LIST_ENEMIES = loadEnemies();
   const LIST_POTIONS = loadPotions();
-  const POTIONS_FUNCTIONS = [hpPotion, goldPotion, critPotion, attackGoblinPotion, fullHpPotion, attackPotion, attackOrcPotion, attackTrollPotion];
+  const POTIONS_FUNCTIONS = [hpPotion, goldPotion, critPotion, attackPotion, attackGoblinPotion, attackOrcPotion, attackTrollPotion, fullHpPotion];
 
   // about phaser
   let windowWidth = window.innerWidth;
@@ -36,23 +37,7 @@
   let currentRound = 0;
   let playerStats = {};
   let enemies = [];
-  let enemiesStats = {
-    goblin: {
-      attack: 1
-    },
-    orc: {
-      attack: 1
-    },
-    troll: {
-      attack: 1
-    },
-    witch: {
-      attack: 1
-    },
-    devil: {
-      attack: 1
-    }
-  }
+  let enemiesStats = initEnemiesStats();
   let resumeBattleLines = [];
   let moneyEarned = 0;
 
@@ -123,6 +108,7 @@
   /* ______ SCENE 1 - SELECT CHARACTER ______ */
 
   function createScene1() {
+    enemiesStats = initEnemiesStats();
     currentRound = 0;
     currentScene = 1;
     potions = initPotions(3);
@@ -247,8 +233,8 @@
           let reward = enemies[i].gold + 'Gold';
           if (enemies[i].name === 'Witch') {
             reward = 'Potion'
-          } else if (enemies[i].name === 'Witch') {
-            reward = 'Stats++';
+          } else if (enemies[i].name === 'Devil') {
+            reward = 'Stats';
           }
           scene2.enemyDescription.stats = createText(`HP: ${enemies[i].hp} / ATK: ${enemies[i].attack * enemiesStats[enemies[i].name.toLowerCase()].attack} / ${reward}`, 18, scene2.enemiesButtons[i].centerX, scene2.enemiesButtons[i].y + 150,'#000000');
           if (timeOverEnemies[i] < 20) {
@@ -340,7 +326,7 @@
 
   function generateEnemies() {
     enemies = [];
-    let levelRoom = currentRound * 2;
+    let levelRoom = currentRound;
     while (levelRoom > 0) {
       const enemy = copy(LIST_ENEMIES[getRandomInt(LIST_ENEMIES.length)]);
       if (enemy.value <= levelRoom && (enemy.name !== 'Devil' || !enemies.map(_enemy => _enemy.name).includes('Devil'))) {
@@ -568,20 +554,19 @@
       scene3.lines.push(createText(line.text, 23, windowWidth / 2 + 1, windowHeight / 2 + 2, colorShadow));
       scene3.lines.push(createText(line.text, 23, windowWidth / 2, windowHeight / 2, color));
       if (line.text.indexOf('dead') !== -1) {
-        console.log('III')
         scene3.enemy.destroy();
         scene3.enemyBorder.destroy();
-        scene3.characterGraphics.destroy();
         scene3.enemyGraphics.destroy();
         scene3.enemy = null;
       } else {
-        console.log('V')
         if (scene3.characterGraphics) {
           scene3.characterGraphics.destroy();
           scene3.enemyGraphics.destroy();
         }
         scene3.characterGraphics = game.add.graphics(0, 0);
         let playerAlpha = (1 - line.playerHp < 0.9) ? 1 - line.playerHp : 0.9;
+        console.log('* - * - *');
+        console.log(playerAlpha)
         scene3.characterGraphics.beginFill(0x8C1818, playerAlpha);
         scene3.characterGraphics.drawRect(scene3.character.x, scene3.character.y, scene3.character.width, scene3.character.height);
         scene3.enemyGraphics = game.add.graphics(0, 0);
@@ -758,105 +743,6 @@
 
   /* ______ SCENE 5 - GAME OVER ______ */
 
-  /* _______________________ POTIONS FUNCTIONS _______________________ */
-
-  function hpPotion(potion) {
-    const perc = Math.round(playerStats.maxHp / 100 * potion.value);
-    playerStats.maxHp += perc;
-    playerStats.hp += perc;
-    effects.push({
-      text: potion.text,
-      rarity: potion.rarity,
-      stayingRounds: potion.rounds,
-      fcn: ()=>{
-        playerStats.maxHp -= perc;
-        playerStats.hp = (playerStats.maxHp < playerStats.hp) ? playerStats.maxHp : playerStats.hp
-      }
-    });
-  }
-
-  function goldPotion(potion) {
-    const perc = Math.round(playerStats.coeffGold / 100 * potion.value * 100) / 100;
-    playerStats.coeffGold += perc;
-    effects.push({
-      text: potion.text,
-      rarity: potion.rarity,
-      stayingRounds: potion.rounds,
-      fcn: ()=>{
-        playerStats.coeffGold -= perc;
-      }
-    });
-  }
-
-  function critPotion(potion) {
-    const perc = Math.round(playerStats.percCritic / 100 * potion.value * 100) / 100;
-    playerStats.percCritic += perc;
-    effects.push({
-      text: potion.text,
-      rarity: potion.rarity,
-      stayingRounds: potion.rounds,
-      fcn: ()=>{
-        playerStats.percCritic -= perc;
-      }
-    });
-  }
-
-  function attackGoblinPotion(potion) {
-    const perc = Math.round(enemiesStats.goblin.attack / 100 * potion.value * 100) / 100;
-    enemiesStats.goblin.attack -= perc;
-    effects.push({
-      text: potion.text,
-      rarity: potion.rarity,
-      stayingRounds: potion.rounds,
-      fcn: ()=>{
-        enemiesStats.goblin.attack += perc;
-      }
-    });
-  }
-
-  function attackOrcPotion(potion) {
-    const perc = Math.round(enemiesStats.orc.attack / 100 * potion.value * 100) / 100;
-    enemiesStats.orc.attack -= perc;
-    effects.push({
-      text: potion.text,
-      rarity: potion.rarity,
-      stayingRounds: potion.rounds,
-      fcn: ()=>{
-        enemiesStats.orc.attack += perc;
-      }
-    });
-  }
-
-  function attackTrollPotion(potion) {
-    const perc = Math.round(enemiesStats.troll.attack / 100 * potion.value * 100) / 100;
-    enemiesStats.troll.attack -= perc;
-    effects.push({
-      text: potion.text,
-      rarity: potion.rarity,
-      stayingRounds: potion.rounds,
-      fcn: ()=>{
-        enemiesStats.troll.attack += perc;
-      }
-    });
-  }
-
-  function fullHpPotion(potion) {
-    playerStats.hp = playerStats.maxHp;
-  }
-
-  function attackPotion(potion) {
-    const perc = Math.round(playerStats.attack / 100 * potion.value * 100) / 100;
-    playerStats.attack += perc;
-    effects.push({
-      text: potion.text,
-      rarity: potion.rarity,
-      stayingRounds: potion.rounds,
-      fcn: ()=>{
-        playerStats.attack -= perc;
-      }
-    });
-  }
-
   /* _______________________ TOOLS FUNCTIONS _______________________ */
 
   function createText(text, size, x, y, color='#FFFFFF', isCenter=true, isBold=false) {
@@ -904,6 +790,26 @@
       newPotions.push(copy(LIST_POTIONS[rndPotion]));
     }
     return newPotions;
+  }
+
+  function initEnemiesStats() {
+    return {
+      goblin: {
+        attack: 1
+      },
+      orc: {
+        attack: 1
+      },
+      troll: {
+        attack: 1
+      },
+      witch: {
+        attack: 1
+      },
+      devil: {
+        attack: 1
+      }
+    }
   }
 
   async function sleep(ms) {
